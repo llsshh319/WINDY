@@ -1,0 +1,76 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+
+        {
+            "name": "Python: Train Weather SimVP INR ODE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/hub_data1/seunghun/OpenSTL/tools/train.py",
+            "args": [
+                "-d", "weather_t2m_1_40625",
+                "-c", "/hub_data1/seunghun/OpenSTL/configs/weather/SimVP_INR_ODE.py",
+                "--ex_name", "weather_simvp_inr_ode",
+                "--gpus", "0",
+                "--data_root", "/hub_data3/seunghun/2m_temperature/2m_temperature_2010_1.40625deg.nc",
+                "--batch_size", "2"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
+            
+            "name": "Python: Train Weather SimVP INR ODE Hash",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/hub_data1/seunghun/OpenSTL/tools/train.py",
+            "args": [
+                "-d", "weather_t2m_1_40625",
+                "--ex_name", "weather_simvp_inr_ode_mulhash",
+                "--gpus", "0", "1",
+                "--wandb_project", "OpenSTL",
+                "--data_root", "/hub_data3/seunghun/2m_temperature/2m_temperature_2010_1.40625deg.nc",
+                "--batch_size", "10",
+                "--train_mask", "0.1",
+                "--coord_encoding", "hashgrid",
+                "--hash_num_levels", "5",
+                "--hash_features_per_level", "2",
+                "--hash_log2_hashmap_size", "15",
+                "--hash_base_resolution", "16",
+                "--hash_per_level_scale", "2"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "5,6"
+            }
+        },
+        {
+            "name": "Python: Dump Weather SimVP INR ODE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/hub_data1/seunghun/OpenSTL/tools/dump_from_ckpt.py",
+            "args": [
+                "-c", "/hub_data1/seunghun/OpenSTL/configs/weather/SimVP_INR_ODE.py",
+                "-d", "weather_t2m_1_40625",
+                "-ex", "weather_simvp_inr_ode",
+                "--ckpt_path", "/hub_data1/seunghun/OpenSTL/work_dirs/weather_simvp_inr_ode/checkpoints/last.ckpt",
+                "--device", "cuda",
+                "--data_root", "/hub_data3/seunghun/2m_temperature"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        }
+    ]
+}
