@@ -34,7 +34,7 @@
             "name": "Python: Train Weather SimVP INR ODE Hash",
             "type": "debugpy",
             "request": "launch",
-            "program": "/hub_data1/seunghun/OpenSTL/tools/train.py",
+            "program": "/hub_data1/seunghun/OpenSTL/train.py",
             "args": [
                 "-d", "weather_t2m_1_40625",
                 "--ex_name", "weather_simvp_inr_ode_mulhash",
