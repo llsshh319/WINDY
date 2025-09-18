@@ -10,10 +10,9 @@ import torch
 import lightning as l
 
 from method import WINDY
-# from openstl.datasets.base_data import BaseDataModule
 from dataloader import get_dataset
-from callbacks import SetupCallback, EpochEndCallback, BestCheckpointCallback
-from utils import measure_throughput
+from utils.callbacks import SetupCallback, EpochEndCallback, BestCheckpointCallback
+from utils.utils import measure_throughput
 from lightning import seed_everything, Trainer
 import lightning.pytorch.callbacks as lc
 from lightning.pytorch.loggers import WandbLogger
@@ -58,8 +57,15 @@ class BaseExperiment(object):
         _, T, C, H, W = bx.shape
         self.args.in_shape = [int(T), int(C), int(H), int(W)]
         
+        # Remove duplicate arguments from args to avoid duplication
+        args_dict = self.args.__dict__.copy()
+        args_dict.pop('steps_per_epoch', None)
+        args_dict.pop('test_mean', None)
+        args_dict.pop('test_std', None)
+        args_dict.pop('save_dir', None)
+        
         self.method = WINDY(steps_per_epoch=len(self.data.train_loader), \
-            test_mean=self.data.test_mean, test_std=self.data.test_std, save_dir=save_dir, **self.args.__dict__)
+            test_mean=self.data.test_mean, test_std=self.data.test_std, save_dir=save_dir, **args_dict)
         callbacks, self.save_dir = self._load_callbacks(save_dir, ckpt_dir)
         # Choose strategy: use DDP explicitly if requested and multiple devices
         requested_strategy = 'ddp' if (self.args.dist and isinstance(self.args.gpus, (list, tuple)) and len(self.args.gpus) > 1) else strategy

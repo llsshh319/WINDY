@@ -5,7 +5,7 @@ import numpy as np
 
 import os.path as osp
 import lightning as l
-# from utils import print_log, check_dir
+from utils.main_utils import print_log, check_dir
 from core import get_optim_scheduler, timm_schedulers
 from core import metric
 from model import WINDY_Model

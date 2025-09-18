@@ -63,11 +63,14 @@ class WINDY_Model(nn.Module):
         # Optional latent Neural ODE dynamics to roll future steps
         self.use_neuralode = bool(kwargs.get('use_neuralode', False))
         if self.use_neuralode:
+            # Use time_interval as step_size for ODE integration
+            time_interval = float(kwargs.get('time_interval', 1.0))
+            print(f"Initializing LatentNeuralODE with step_size (time_interval): {time_interval}")
             self.latent_ode = LatentNeuralODE(in_channels=self.enc_out_dim,
                                               hidden_channels=int(kwargs.get('ode_hidden', 64)),
                                               num_layers=int(kwargs.get('ode_layers', 2)),
                                               method=str(kwargs.get('ode_method', 'rk4')),
-                                              step_size=float(kwargs.get('ode_dt', 1.0)))
+                                              step_size=time_interval)
 
         # VAE components (optional)
         self.vae = bool(kwargs.get('vae', False))
@@ -76,9 +79,21 @@ class WINDY_Model(nn.Module):
             self.mu_head = nn.Conv2d(self.enc_out_dim, self.enc_out_dim, kernel_size=1)
             self.logvar_head = nn.Conv2d(self.enc_out_dim, self.enc_out_dim, kernel_size=1)
 
-    def forward(self, x_raw):
+    def forward(self, x_raw, output_size=None, aft_seq_length=None):
         B, T, C, H, W = x_raw.shape
         x = x_raw.view(B*T, C, H, W)
+        
+        # Use provided output size or default to input size
+        if output_size is not None:
+            H_out, W_out = output_size
+        else:
+            H_out, W_out = H, W
+            
+        # Use provided aft_seq_length or default from args
+        if aft_seq_length is not None:
+            pred_steps = int(aft_seq_length)
+        else:
+            pred_steps = int(self.args['aft_seq_length'])
 
         embed, skip = self.enc(x)
         _, C_, H_, W_ = embed.shape
@@ -117,8 +132,6 @@ class WINDY_Model(nn.Module):
             dec_in = hid
 
         if self.use_neuralode:
-            # Strict: use aft_seq_length (raise KeyError if missing)
-            pred_steps = int(self.args['aft_seq_length'])
             # Predict next pred_steps frames given the last latent as initial condition
             z_btchw = dec_in.view(B, T, C_small, H_, W_)
             z0 = z_btchw[:, -1]
@@ -131,15 +144,26 @@ class WINDY_Model(nn.Module):
 
         if self.inr_dec is None:
             Y = self.dec(dec_seq, skip)
-            Y = Y.reshape(B, T_out, C, H, W)
+            Y = Y.reshape(B, T_out, C, H_out, W_out)
         else:
             Hp, Wp = H_, W_
-            out = self.inr_dec(
-                dec_seq,
-                output_size=(H, W),
-                bsize=self.args.get('inr_chunk', None),
-                train_mask=float(self.args['train_mask'])
-            )
+            # Auto-adjust chunk size based on output size to prevent memory issues
+            total_pixels = H_out * W_out
+            # For extremely large outputs, process in spatial patches
+            chunk_size = self.args.get('inr_chunk', None)
+            if total_pixels > 4000000:  # > 4M pixels (e.g., 2048x2048)
+                print(f"Very large output detected, processing in spatial patches...")
+                
+                print(f"Output size: {H_out}x{W_out} ({total_pixels} pixels), using chunk size: {chunk_size}")
+                
+                out = self._process_large_output(dec_seq, H_out, W_out, chunk_size, B, T_out)
+            else:
+                out = self.inr_dec(
+                    dec_seq,
+                    output_size=(H_out, W_out),
+                    bsize=chunk_size,
+                    train_mask=float(self.args['train_mask'])
+                )
             if isinstance(out, dict):
                 # out: {'pred': (N,C,H,W), 'mask': (N,1,H,W)} with N=B*T_out
                 out['B'] = B
@@ -148,11 +172,65 @@ class WINDY_Model(nn.Module):
                     return out
                 else:
                     return out, kl
-            Y = out.view(B, T_out, C, H, W)
+            Y = out.view(B, T_out, C, H_out, W_out)
         if kl is None:
             return Y
         else:
             return Y, kl
+
+    def _process_large_output(self, dec_seq, H_out, W_out, chunk_size, B, T_out):
+        """Process very large outputs by dividing into spatial patches."""
+        N, C = dec_seq.shape[0], dec_seq.shape[1]
+        
+        # Divide into overlapping patches to avoid boundary artifacts
+        patch_size = 512  # Process 512x512 patches
+        overlap = 64      # 64 pixel overlap
+        
+        patches_h = (H_out + patch_size - 1) // patch_size
+        patches_w = (W_out + patch_size - 1) // patch_size
+        
+        print(f"Processing {patches_h}x{patches_w} patches of size {patch_size}x{patch_size}")
+        
+        # Initialize output tensor
+        output = torch.zeros(B * T_out, C, H_out, W_out, device=dec_seq.device, dtype=dec_seq.dtype)
+        weight = torch.zeros(H_out, W_out, device=dec_seq.device, dtype=dec_seq.dtype)
+        
+        for i in range(patches_h):
+            for j in range(patches_w):
+                # Calculate patch boundaries
+                h_start = i * (patch_size - overlap)
+                w_start = j * (patch_size - overlap)
+                h_end = min(h_start + patch_size, H_out)
+                w_end = min(w_start + patch_size, W_out)
+                
+                # Adjust for last patches
+                h_start = max(0, h_end - patch_size)
+                w_start = max(0, w_end - patch_size)
+                
+                patch_h = h_end - h_start
+                patch_w = w_end - w_start
+                
+                # Process this patch
+                patch_out = self.inr_dec(
+                    dec_seq,
+                    output_size=(patch_h, patch_w),
+                    bsize=chunk_size,
+                    train_mask=float(self.args['train_mask'])
+                )
+                
+                if isinstance(patch_out, dict):
+                    patch_pred = patch_out['pred']
+                else:
+                    patch_pred = patch_out
+                
+                # Place patch in output
+                output[:, :, h_start:h_end, w_start:w_end] += patch_pred
+                weight[h_start:h_end, w_start:w_end] += 1.0
+        
+        # Normalize by weight to handle overlapping regions
+        output = output / weight.unsqueeze(0).unsqueeze(0)
+        
+        return output
 
 
 def sampling_generator(N, reverse=False):

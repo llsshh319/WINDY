@@ -1,0 +1,7 @@
+train ->
+python train.py -d weather_t2m_1_40625 --ex_name weather_simvp_inr --gpus 0 1 --wandb_project OpenSTL --data_root /hub_data3/seunghun/2m_temperature/2m_temperature_2010_1.40625deg.nc --coord_encoding none --batch_size 10 --train_mask 0.1
+
+dump ->
+python dump.py -ex work_dirs/weather_simvp_inr_ode_mulhash/checkpoints/last-v6.ckpt --data_root /hub_data3/seunghun/2m_temperature/2m_temperature_2010_1.40625deg.nc --output_size 128 256 --aft_seq_length 60
+
+visualize -> simple_vis.ipynb

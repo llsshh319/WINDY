@@ -1,5 +1,5 @@
-import warnings
-warnings.filterwarnings("ignore")
+# import warnings
+# warnings.filterwarnings("ignore")
 
 import random
 import numpy as np
@@ -7,10 +7,9 @@ import os.path as osp
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
-# from openstl.datasets.utils import create_loader
 import tqdm
 
-from utils import create_loader
+from utils.utils import create_loader
 
 try:
     import xarray as xr
@@ -111,8 +110,6 @@ class WeatherBenchDataset(Dataset):
 
         self.time = None
         self.time_size = self.training_time
-        shape = int(32 * 5.625 / float(data_split.replace('_', '.')))
-        self.shape = (shape, shape * 2)
 
         self.data, self.mean, self.std = [], [], []
 
@@ -175,6 +172,10 @@ class WeatherBenchDataset(Dataset):
             print("OSError: Invalid path {}/{}/*.nc".format(self.data_root, data_map[data_name]))
             assert False
 
+        # ###########
+        # dataset = dataset.isel(time=slice(0, 100))
+        # ###########
+
         if 'time' not in dataset.indexes:
             dataset = dataset.expand_dims(dim={"time": 1}, axis=0)
         else:
@@ -184,11 +185,20 @@ class WeatherBenchDataset(Dataset):
             # # reduce to per-frame (single) timestep
             # dataset = dataset.isel(time=slice(0, 1))
             # self.time_size = 1
+        lat = dataset["latitude"] if "latitude" in dataset.coords else dataset["lat"]
+        # 위도가 내림차순(90→-90)이면 한 방에 뒤집기
+        if np.all(np.diff(lat.values) < 0):
+            dataset = dataset.isel({lat.name: slice(None, None, -1)})
 
         if 'level' not in dataset.indexes:
             dataset = dataset.expand_dims(dim={"level": 1}, axis=1)
         else:
-            dataset = dataset.sel(level=np.array(levels))
+            if 't2m' in data_name:
+            # If 'level' exists but is not needed, squeeze it to size 1 (drop all but one level)
+                dataset = dataset.isel(level=0)
+                dataset = dataset.expand_dims(dim={"level": 1}, axis=1)
+            else:
+                dataset = dataset.sel(level=np.array(levels))
 
         # Select correct variable key depending on storage
         if data_name in data_keys_map:
@@ -268,7 +278,7 @@ def load_data(batch_size,
               distributed=False, use_augment=False, use_prefetcher=False, drop_last=False,
               **kwargs):
 
-    assert data_split in ['5_625', '2_8125', '1_40625']
+    assert data_split in ['5_625', '2_8125', '1_40625', '0_25']
     # default to provided data_root; if a file is given, keep as-is; else try known dirs
     weather_dataroot = data_root
     if isinstance(data_root, str) and (data_root.endswith('.nc') or data_root.endswith('.zarr')):
@@ -335,11 +345,14 @@ def load_data(batch_size,
 
 
 def get_dataset(dataname, batch_size, val_batch_size, num_workers, data_root, dist=False, **kwargs):
-    data_split_pool = ['5_625', '2_8125', '1_40625']
+    data_split_pool = ['5_625', '2_8125', '1_40625', '0_25']
     data_split = '5_625'
     for k in data_split_pool:
         if dataname.find(k) != -1:
             data_split = k
+            # Convert 0p25 to 0_25 for internal processing
+            if data_split == '0p25':
+                data_split = '0_25'
     _kwargs = dict(kwargs)
     if 'data_split' in _kwargs:
         _kwargs.pop('data_split')

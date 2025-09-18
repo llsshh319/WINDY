@@ -1,4 +1,5 @@
 bak
 work_dirs
-.vscode
+visualize
+.vscode/
 **/__pycache__

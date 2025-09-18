@@ -1,7 +1,7 @@
-import warnings
+# import warnings
 # warnings.filterwarnings('ignore')
 
-from utils import get_dist_info
+from utils.utils import get_dist_info
 from parser import create_parser
 from exp import BaseExperiment
 

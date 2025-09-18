@@ -126,7 +126,7 @@ def create_parser():
                         help='Fraction of coordinates to train on per image (0<r<=1). Applies only during training for INR decoding.')
 
     # Training parameters (optimizer)
-    parser.add_argument('--epoch', '-e', default=400, type=int, help='end epochs (default: 200)')
+    parser.add_argument('--epoch', '-e', default=600, type=int, help='end epochs (default: 200)')
     parser.add_argument('--log_step', default=1, type=int, help='Log interval by step')
     parser.add_argument('--opt', default='adam', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "adam"')

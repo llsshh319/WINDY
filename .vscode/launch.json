@@ -38,11 +38,11 @@
             "args": [
                 "-d", "weather_t2m_1_40625",
                 "--ex_name", "weather_simvp_inr_ode_mulhash",
-                "--gpus", "0", "1",
+                "--gpus", "0", 
                 "--wandb_project", "OpenSTL",
-                "--data_root", "/hub_data3/seunghun/2m_temperature/2m_temperature_2010_1.40625deg.nc",
-                "--batch_size", "10",
-                "--train_mask", "0.1",
+                "--data_root", "/hub_data3/seunghun/2m_temperature", //2m_temperature_2010_1.40625deg.nc
+                "--batch_size", "30",
+                "--train_mask", "0.01",
                 "--coord_encoding", "hashgrid",
                 "--hash_num_levels", "5",
                 "--hash_features_per_level", "2",
@@ -53,21 +53,20 @@
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "5,6"
+                "CUDA_VISIBLE_DEVICES": "0"
             }
         },
         {
-            "name": "Python: Dump Weather SimVP INR ODE",
+            "name": "Python: Dump Weather SimVP INR ODE Hash",
             "type": "debugpy",
             "request": "launch",
-            "program": "/hub_data1/seunghun/OpenSTL/tools/dump_from_ckpt.py",
+            "program": "/hub_data1/seunghun/OpenSTL/dump.py",
             "args": [
-                "-c", "/hub_data1/seunghun/OpenSTL/configs/weather/SimVP_INR_ODE.py",
-                "-d", "weather_t2m_1_40625",
-                "-ex", "weather_simvp_inr_ode",
-                "--ckpt_path", "/hub_data1/seunghun/OpenSTL/work_dirs/weather_simvp_inr_ode/checkpoints/last.ckpt",
-                "--device", "cuda",
-                "--data_root", "/hub_data3/seunghun/2m_temperature"
+                "-ex", "work_dirs/weather_simvp_inr_ode_mulhash/checkpoints/last-v6.ckpt",
+                // "--data_root", "/hub_data3/seunghun/2m_temperature",
+                "--data_root", "/hub_data3/seunghun/era5_data_0p25/datasets/era5/1959-2023_01_10-full_37-1h-0p25deg-chunk-1.zarr",
+                "--output_size", "128", "256",
+                "--aft_seq_length", "60"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
